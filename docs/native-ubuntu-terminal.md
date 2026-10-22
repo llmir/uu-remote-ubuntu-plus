@@ -16,6 +16,12 @@ same unprivileged Ubuntu user as `uu-remote-bridge.service`, starts in that
 user's home directory, loads the normal login-shell configuration, supports
 interactive programs and UTF-8, and follows controller resize events.
 
+Resize updates accept 1–1000 columns and 1–1000 rows. A well-formed update
+outside that range is ignored, preserving the current PTY size and session;
+a later valid update is applied normally. This handles controller startup
+sequences such as 120×9001 followed by 120×30. Malformed frames and actual
+`TIOCSWINSZ` failures still close the affected terminal session.
+
 ### Controller version compatibility
 
 Terminal availability depends on the controller platform, UU app version and host terminal protocol. If the client reports `Client version too low` or a streamer error before the shell opens, record both versions, check the official controller's Terminal entry and try a fresh terminal session. Confirm the connection with actual Ubuntu shell output.

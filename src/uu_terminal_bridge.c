@@ -235,7 +235,13 @@ static void run_login_shell(void)
     _exit(127);
 }
 
-static int apply_resize(int pty_master, const unsigned char *payload)
+enum resize_result {
+    RESIZE_FAILED = -1,
+    RESIZE_IGNORED = 0,
+    RESIZE_APPLIED = 1,
+};
+
+static enum resize_result apply_resize(int pty_master, const unsigned char *payload)
 {
     struct winsize size;
     uint16_t columns_network;
@@ -247,10 +253,13 @@ static int apply_resize(int pty_master, const unsigned char *payload)
     memset(&size, 0, sizeof(size));
     size.ws_col = ntohs(columns_network);
     size.ws_row = ntohs(rows_network);
+    /* Controllers can send transient out-of-range sizes while initializing.
+     * Keep the current PTY size until a valid update arrives. */
     if (size.ws_col == 0 || size.ws_col > 1000 ||
         size.ws_row == 0 || size.ws_row > 1000)
-        return 0;
-    return ioctl(pty_master, TIOCSWINSZ, &size) == 0;
+        return RESIZE_IGNORED;
+    return ioctl(pty_master, TIOCSWINSZ, &size) == 0
+               ? RESIZE_APPLIED : RESIZE_FAILED;
 }
 
 static int relay_session(int client, const char *expected_token)
@@ -352,8 +361,12 @@ static int relay_session(int client, const char *expected_token)
                     !write_all_fd(pty_master, payload, length))
                     break;
             } else if (frame.type == UURB_TERMINAL_FRAME_RESIZE) {
-                if (length != 4 || !apply_resize(pty_master, payload))
+                if (length != 4)
                     break;
+                if (apply_resize(pty_master, payload) == RESIZE_FAILED) {
+                    perror("terminal resize ioctl failed");
+                    break;
+                }
             } else if (frame.type == UURB_TERMINAL_FRAME_EOF) {
                 unsigned char end_of_input = 4;
 
