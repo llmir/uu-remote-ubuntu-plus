@@ -17,6 +17,13 @@ Bridge release tags and the approved Windows UU version are tracked separately.
   MinGW ConPTY declarations and shared FreeRDP input-plugin loading fixes.
 - Fixed official UU 4.42 installer URL; approved hashes and patches are unchanged.
 
+### Fixed
+
+- Keep native terminal sessions connected when controllers send transient
+  out-of-range resize dimensions (for example, 120×9001 before 120×30).
+  The previous PTY size is retained until a valid resize arrives; malformed
+  frames and actual PTY resize errors still close the affected session.
+
 ## Plus 0.2.0-work — 2026-10-06
 
 Development source update; Plus 0.1.0 remains the last tagged release.
