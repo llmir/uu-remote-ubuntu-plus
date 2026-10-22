@@ -86,6 +86,12 @@ See the [upstream comparison](docs/upstream-comparison.md) for specific changes 
 
 ## Quick install
 
+An **experimental Debian 13 / GNOME 48 host port** is also available. Its
+installer uses Debian WineHQ packages and builds the pinned relay inside
+Ubuntu 26.04 with Podman. New Debian setups select the compatible input route,
+enable the cursor guard and prepare the manager's GDI renderer before first
+sign-in. See the [Debian host guide](docs/debian-13-host.md) for setup and limits.
+
 Use an x86-64 Ubuntu host with a logged-in GNOME desktop. Clone the project:
 
 ```bash

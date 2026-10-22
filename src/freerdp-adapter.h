@@ -7,7 +7,7 @@
 #include <freerdp/scancode.h>
 #include <freerdp/timer.h>
 #include "full-input.h"
-/* Actual source header types; no offset reconstruction or secondary library. */
+/* Actual source header types; resolve the loaded main or its colocated core DLL. */
 typedef struct {
  BOOL (*key)(rdpInput*,UINT16,UINT8);
  BOOL (*key_ex)(rdpInput*,BOOL,BOOL,UINT32);

@@ -6,6 +6,17 @@
 
 Bridge release tags and the approved Windows UU version are tracked separately.
 
+## Unreleased
+
+- Experimental Debian 13 / GNOME 48 host setup, using Debian WineHQ packages
+  and a Podman build of the pinned Ubuntu reference relay.
+- Debian first-sign-in preparation: application-scoped GDI rendering,
+  compatible input and cursor defaults, and terminal confirmation before
+  retiring the native account window. Explicit saved settings are preserved.
+- Fresh-user tool asset installation, empty Wine device-registry cleanup,
+  MinGW ConPTY declarations and shared FreeRDP input-plugin loading fixes.
+- Fixed official UU 4.42 installer URL; approved hashes and patches are unchanged.
+
 ## Plus 0.2.0-work — 2026-10-06
 
 Development source update; Plus 0.1.0 remains the last tagged release.

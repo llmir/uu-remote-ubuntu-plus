@@ -19,6 +19,24 @@ class WineRegistryTests(unittest.TestCase):
         )
         return prefix
 
+    def test_empty_cleanup_plan_produces_no_registry_delete_arguments(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = self.write_registry(
+                Path(temporary),
+                r'''
+[System\\ControlSet001\\Services\\winebth] 1
+"Start"=dword:00000003
+''',
+            )
+            plan = subprocess.run(
+                [str(INSPECTOR), "plan", str(prefix)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            # The cleaner uses mapfile: even one newline means an empty key.
+            self.assertEqual([], plan.stdout.splitlines())
+
     def test_inspector_finds_only_audited_stale_device_artifacts(self):
         with tempfile.TemporaryDirectory() as temporary:
             prefix = self.write_registry(

@@ -93,7 +93,7 @@ physical_key_delay_ms="${UURB_PHYSICAL_KEY_DELAY_MS:-${saved_physical_key_delay_
 keyboard_route="${UURB_KEYBOARD_ROUTE:-${saved_keyboard_route:-rdp}}"
 phone_text_mode="${UURB_PHONE_TEXT_MODE:-${saved_phone_text_mode:-auto}}"
 network_interface="${UURB_NETWORK_INTERFACE:-${saved_network_interface:-all}}"
-cursor_guard="${UURB_CURSOR_GUARD:-${saved_cursor_guard:-off}}"
+cursor_guard="${UURB_CURSOR_GUARD:-${saved_cursor_guard:-}}"
 cursor_size="${UURB_CURSOR_SIZE:-${saved_cursor_size:-auto}}"
 console_vnc_port="${UURB_CONSOLE_VNC_PORT:-${saved_console_vnc_port:-5920}}"
 console_web_port="${UURB_CONSOLE_WEB_PORT:-${saved_console_web_port:-6080}}"
@@ -158,13 +158,13 @@ usage: ./install.sh [options]
   --network-interface all|default|IFACE
                          use all adapters (the default), Ubuntu's preferred
                          route, or one named interface
-  --cursor-guard off|on  opt into the process-local UU cursor workaround
-                         (default: off)
+  --cursor-guard off|on  process-local UU cursor workaround
+                         (new Debian install: on; Ubuntu: off)
   --cursor-size auto|N   with the cursor guard on, match the desktop cursor or
                          use a fixed size from 24 through 128 pixels
   --console-vnc-port N   localhost VNC sidecar port (default: 5920)
   --console-web-port N   localhost noVNC app port (default: 6080)
-  --skip-packages        do not install Ubuntu/Wine package dependencies
+  --skip-packages        do not install distribution/Wine package dependencies
   --skip-account-login   do not open UU for first-time account sign-in
   --unattended           enable TPM-backed startup after an automatic login
   --automatic-updates    enable daily checks and resumable Codex repair
@@ -302,7 +302,7 @@ if [[ $EUID -eq 0 ]]; then
     exit 1
 fi
 if [[ "$(uname -m)" != x86_64 ]]; then
-    printf 'Only x86_64 Ubuntu is currently supported.\n' >&2
+    printf 'Only x86_64 Ubuntu or Debian 13 is currently supported.\n' >&2
     exit 1
 fi
 if [[ ! -r /etc/os-release ]]; then
@@ -311,19 +311,35 @@ if [[ ! -r /etc/os-release ]]; then
 fi
 # shellcheck source=/dev/null
 source /etc/os-release
-supported_ubuntu_releases='24.04 26.04'
-if [[ "${ID:-}" != ubuntu ]]; then
-    printf 'Only Ubuntu is currently supported; detected %s %s.\n' \
-        "${ID:-unknown}" "${VERSION_ID:-unknown}" >&2
+case "${ID:-}" in
+    ubuntu)
+        supported_ubuntu_releases='24.04 26.04'
+        if [[ " $supported_ubuntu_releases " != *" ${VERSION_ID:-} "* ]] &&
+           [[ "${UURB_ALLOW_UNVALIDATED_UBUNTU:-0}" != 1 ]]; then
+            printf 'The validated Ubuntu hosts are %s; detected %s.\n' \
+                "$supported_ubuntu_releases" "${VERSION_ID:-unknown}" >&2
+            printf 'Set UURB_ALLOW_UNVALIDATED_UBUNTU=1 to attempt an unvalidated release.\n' >&2
+            exit 1
+        fi
+        ;;
+    debian)
+        if [[ "${VERSION_ID:-}" != 13 || "${VERSION_CODENAME:-}" != trixie ]]; then
+            printf 'The Debian port targets Debian 13 (trixie); detected %s %s.\n' \
+                "${VERSION_ID:-unknown}" "${VERSION_CODENAME:-unknown}" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        printf 'Supported hosts are Ubuntu 24.04/26.04 and Debian 13; detected %s %s.\n' \
+            "${ID:-unknown}" "${VERSION_ID:-unknown}" >&2
+        exit 1
+        ;;
+esac
+if [[ ! "${VERSION_CODENAME:-}" =~ ^[a-z][a-z0-9-]*$ ]]; then
+    printf 'A valid distribution codename is required for the WineHQ source.\n' >&2
     exit 1
 fi
-if [[ " $supported_ubuntu_releases " != *" ${VERSION_ID:-} "* ]] &&
-   [[ "${UURB_ALLOW_UNVALIDATED_UBUNTU:-0}" != 1 ]]; then
-    printf 'The validated Ubuntu hosts are %s; detected %s.\n' \
-        "$supported_ubuntu_releases" "${VERSION_ID:-unknown}" >&2
-    printf 'Set UURB_ALLOW_UNVALIDATED_UBUNTU=1 to attempt an unvalidated release.\n' >&2
-    exit 1
-fi
+winehq_sources_url="https://dl.winehq.org/wine-builds/$ID/dists/$VERSION_CODENAME/winehq-$VERSION_CODENAME.sources"
 if [[ ! "$rdp_port" =~ ^[1-9][0-9]{0,4}$ ]] ||
    ((rdp_port < 1024 || rdp_port > 65535)); then
     printf 'The RDP port must be an integer from 1024 through 65535.\n' >&2
@@ -362,10 +378,18 @@ if [[ "$desktop_relay" != rdp && "$desktop_relay" != vnc ]]; then
     exit 2
 fi
 if [[ -z "$input_route" ]]; then
-    if [[ "$desktop_relay" == rdp ]]; then
+    # Debian 13's GNOME 48 does not advertise the relative-pointer capability
+    # required by rdp-public. Keep the existing compatible SDL/RDP route.
+    if [[ "$desktop_relay" == rdp && "$ID" != debian ]]; then
         input_route=rdp-public
     else
         input_route=legacy
+    fi
+fi
+if [[ -z "${cursor_guard:-}" ]]; then
+    cursor_guard=off
+    if [[ "$ID" == debian ]]; then
+        cursor_guard=on
     fi
 fi
 if [[ "$input_route" != legacy && "$input_route" != rdp-public ]] ||
@@ -488,16 +512,13 @@ install_winehq() {
     if [[ -x "$wine_bin" ]]; then
         return
     fi
-    # shellcheck source=/dev/null
-    source /etc/os-release
-    codename="${VERSION_CODENAME:?Ubuntu codename is unavailable}"
+    codename="${VERSION_CODENAME:?Distribution codename is unavailable}"
     temporary="$(mktemp -d)"
 
     sudo dpkg --add-architecture i386
     curl -fsSL https://dl.winehq.org/wine-builds/winehq.key \
         -o "$temporary/winehq.key"
-    curl -fsSL \
-        "https://dl.winehq.org/wine-builds/ubuntu/dists/$codename/winehq-$codename.sources" \
+    curl -fsSL "$winehq_sources_url" \
         -o "$temporary/winehq-$codename.sources"
     sudo install -d -m 0755 /etc/apt/keyrings
     # apt >= 3 (Ubuntu 26.04) rejects ASCII-armored keys; dearmor to binary.
@@ -513,6 +534,18 @@ install_winehq() {
 }
 
 install_packages() {
+    local -a distribution_packages=()
+    if [[ "$ID" == debian ]]; then
+        # The exact Ubuntu reference tools live in a container, never in /usr.
+        distribution_packages+=(build-essential)
+        if [[ -z "${UURB_FREERDP_PREBUILT_DIR:-}" ]] &&
+           ! "$python_bin" "$repo_dir/scripts/verify-freerdp-runtime.py" \
+                "$freerdp_build" >/dev/null 2>&1; then
+            # A Docker CLI may target an unavailable, rootless or remapped daemon.
+            # Provision the supported rootless fallback for every cold build.
+            distribution_packages+=(podman uidmap)
+        fi
+    fi
     sudo apt-get update
     sudo apt-get install -y \
         acl aria2 binutils ca-certificates cmake crudini curl \
@@ -523,8 +556,13 @@ install_packages() {
         ninja-build openbox openssl p7zip-full patch python3 python3-attr \
         python3-gi python3-jinja2 python3-xlib python3-pil tar tigervnc-viewer websockify \
         x11-utils x11-xserver-utils x11vnc xauth xclip xcompmgr zenity \
-        xdotool xvfb zstd
+        xdotool xvfb zstd "${distribution_packages[@]}"
     install_winehq
+    if [[ "$ID" == debian ]]; then
+        # WineHQ's runtime includes winegcc, but Winelib headers/import libraries
+        # are in a separate package, including when Wine was installed earlier.
+        sudo apt-get install -y --install-recommends wine-stable-dev
+    fi
 }
 
 stop_wine_prefix() {
@@ -714,6 +752,13 @@ printf 'libei mode: %s (system libei %s)\n' \
     "$libei_mode" "${system_libei_version:-absent}"
 
 "$repo_dir/scripts/build-compat.sh" "$compat_build"
+"$repo_dir/scripts/build-full-input-loader.sh" "$compat_build"
+if [[ "$ID" == debian && -z "${UURB_FREERDP_PREBUILT_DIR:-}" ]] &&
+   ! "$python_bin" "$repo_dir/scripts/verify-freerdp-runtime.py" \
+        "$freerdp_build" >/dev/null 2>&1; then
+    "$python_bin" "$repo_dir/scripts/build-reference-relay.py" \
+        --output "$freerdp_build"
+fi
 "$repo_dir/scripts/build-winpr.sh" "$freerdp_build"
 if [[ "$libei_mode" == backport ]]; then
     "$repo_dir/scripts/build-libei.sh" "$libei_build"
@@ -778,6 +823,13 @@ if [[ ! -f "$uu_dir/GameViewer.exe" || "$upgrade_existing" == true ]]; then
             detach-system-links "$wine_prefix"
         "$wine_bin" wineboot -u
         "$wine_bin" winecfg -v win10
+        if [[ "$ID" == debian ]]; then
+            # Apply before the official installer can launch its manager. This
+            # setting is scoped to this application's new, dedicated prefix.
+            "$wine_bin" reg add \
+                'HKCU\Software\Wine\AppDefaults\GameViewer.exe\Direct3D' \
+                /v renderer /t REG_SZ /d gdi /f
+        fi
     else
         if [[ ! -f "$installed_manifest" ]]; then
             printf 'Cannot upgrade without the currently installed release manifest.\n' >&2
@@ -872,6 +924,8 @@ while IFS= read -r freerdp_file; do
 done < <("$python_bin" "$repo_dir/scripts/verify-freerdp-runtime.py" --mode list)
 install -m 0755 "$compat_build/uurb-full-input-client.dll" \
     "$freerdp_install/uurb-full-input-client.dll"
+install -m 0755 "$compat_build/libuurb-full-input-client.dll" \
+    "$freerdp_install/libuurb-full-input-client.dll"
 install -m 0755 "$compat_build/uu-input-bridge-public.dll" \
     "$freerdp_install/uu-input-bridge.dll"
 if [[ "$libei_mode" == backport ]]; then
@@ -1003,7 +1057,7 @@ install -m 0755 "$repo_dir/scripts/uu-quality.py" \
     "$HOME/.local/libexec/uu-quality.py"
 install -m 0755 "$repo_dir/scripts/uu-clipboard-native.py" \
     "$HOME/.local/libexec/uu-clipboard-native.py"
-install -m 0644 "$repo_dir/VERSION" "$HOME/.local/share/uu-remote/tools/VERSION"
+install -D -m 0644 "$repo_dir/VERSION" "$HOME/.local/share/uu-remote/tools/VERSION"
 install -m 0755 "$repo_dir/scripts/uu-desktop-tool.py" \
     "$HOME/.local/libexec/uu-desktop-tool.py"
 install -D -m 0644 "$repo_dir/desktop/uu-tools-fonts.conf" \
@@ -1179,9 +1233,30 @@ unset rdp_password
 
 if [[ "$fresh_install" == true && "$skip_account_login" == false ]]; then
     printf '\nUU Remote needs an authenticated account once.\n'
-    printf 'Complete the official UU sign-in window, then close that window.\n'
-    (cd "$uu_dir" && "$wine_bin" GameViewer.exe) || true
-    stop_wine_prefix
+    if [[ "$ID" == debian ]]; then
+        (
+            # UU's launcher exits before its real GUI. Keep the Wine desktop
+            # alive and let the user confirm sign-in before stopping the prefix.
+            trap stop_wine_prefix EXIT
+            unset WAYLAND_DISPLAY
+            export XDG_SESSION_TYPE=x11
+            export WINEDLLOVERRIDES='winebth.sys=d;winedbg.exe=d;mscoree,mshtml='
+            "$wine_prefix/compat/winlogon.exe" \
+                >>"$wine_prefix/compat/account-login.log" 2>&1 &
+            login_winlogon_pid=$!
+            (cd "$uu_dir" && "$wine_bin" GameViewer.exe)
+            if ! kill -0 "$login_winlogon_pid" 2>/dev/null; then
+                printf 'The account-login Wine desktop exited unexpectedly.\n' >&2
+                exit 1
+            fi
+            read -rp 'Complete UU sign-in, then press Enter here to start the bridge: ' \
+                login_confirmation
+        )
+    else
+        printf 'Complete the official UU sign-in window, then close that window.\n'
+        (cd "$uu_dir" && "$wine_bin" GameViewer.exe) || true
+        stop_wine_prefix
+    fi
 fi
 
 if [[ "$start_service" == true ]]; then

@@ -172,6 +172,7 @@ full_config_path="${input_bridge_dll%/*}/uu-input-public-session.conf"
 input_broker_exe="$compat_dir/uu-input-broker.exe"
 input_broker_probe_exe="$compat_dir/uu-input-broker-probe.exe"
 full_input_plugin="$WINEPREFIX/drive_c/Program Files/FreeRDP/uurb-full-input-client.dll"
+full_input_loader="$WINEPREFIX/drive_c/Program Files/FreeRDP/libuurb-full-input-client.dll"
 full_ready_helper="$HOME/.local/share/uu-remote/tools/uu-full-ready.py"
 manual_plane_helper="$HOME/.local/share/uu-remote/tools/uu-manual-plane.py"
 manual_plane_ready="$runtime_dir/manual-plane.json"
@@ -1485,7 +1486,7 @@ if [[ "$native_display_modes" == true ]]; then
     fi
 fi
 if [[ "$input_route" == rdp-public ]]; then
-    for required in "$full_input_plugin" "$input_broker_probe_exe" "$full_ready_helper" "$manual_plane_helper"; do
+    for required in "$full_input_plugin" "$full_input_loader" "$input_broker_probe_exe" "$full_ready_helper" "$manual_plane_helper"; do
         [[ -f "$required" && ! -L "$required" && -r "$required" ]] || { log "Full input/Manual artifact missing: $required"; exit 1; }
     done
     full_session_dir="$(/usr/bin/mktemp -d "$runtime_dir/full-session.XXXXXXXX")"

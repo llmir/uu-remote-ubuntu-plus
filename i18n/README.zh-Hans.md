@@ -93,6 +93,12 @@ cd uu-remote-ubuntu-plus
 uu-remote open
 ```
 
+另有 **Debian 13 / GNOME 48 被控端的实验适配**，使用 Debian 的 WineHQ
+软件源，并通过 Podman 在 Ubuntu 26.04 容器中构建锁定中继。新配置默认
+启用兼容输入路径和光标修复，并在首次登录前为管理界面设置 GDI 渲染。
+完成 UU 登录后，回到安装终端按 Enter 再启动中继。安装步骤及使用限制见
+[Debian 被控端指南](../docs/debian-13-host.md)。
+
 安装器准备依赖、编译兼容组件、配置 GNOME Remote Desktop 并启动用户服务。
 首次安装会询问中继密码，将其保存到 GNOME Keyring，然后打开 UU 完成账号登录。
 重新安装会保留已保存设置与现有 UU 账号状态。

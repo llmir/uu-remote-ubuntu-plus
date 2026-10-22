@@ -1,12 +1,13 @@
 #include "freerdp-adapter.h"
 #include <string.h>
+#include <wchar.h>
 static bool resolve(HMODULE module,const char* name,void* target,size_t bytes) {
  FARPROC value=GetProcAddress(module,name);
  if(!value || bytes!=sizeof(value)){ return false; }
  memcpy(target,&value,bytes);return true;
 }
 #define R(field,name) resolve(main,name,&out->field,sizeof(out->field))
-bool ui_resolve(ui_exports* out,HMODULE main) {
+static bool resolve_exports(ui_exports* out,HMODULE main) {
  memset(out,0,sizeof(*out));
  return R(key,"freerdp_input_send_keyboard_event") &&
  R(key_ex,"freerdp_input_send_keyboard_event_ex") &&
@@ -24,6 +25,24 @@ bool ui_resolve(ui_exports* out,HMODULE main) {
  R(timer_add,"freerdp_timer_add") && R(timer_remove,"freerdp_timer_remove");
 }
 #undef R
+static bool colocated_core(HMODULE main,HMODULE core) {
+ WCHAR executable[MAX_PATH],library[MAX_PATH];
+ DWORD executable_length=GetModuleFileNameW(main,executable,MAX_PATH);
+ DWORD library_length=GetModuleFileNameW(core,library,MAX_PATH);
+ if(!executable_length||executable_length>=MAX_PATH||!library_length||library_length>=MAX_PATH){return false;}
+ WCHAR* executable_end=wcsrchr(executable,L'\\');
+ WCHAR* library_end=wcsrchr(library,L'\\');
+ if(!executable_end||!library_end||executable_end-executable!=library_end-library){return false;}
+ return _wcsnicmp(executable,library,(size_t)(executable_end-executable)+1)==0;
+}
+bool ui_resolve(ui_exports* out,HMODULE main) {
+ if(resolve_exports(out,main)){return true;}
+ /* The pinned shared build exports its API from the already loaded core DLL.
+  * Never search for or load a replacement, and require the executable's directory. */
+ HMODULE core=GetModuleHandleW(L"libfreerdp3.dll");
+ if(main==GetModuleHandleW(NULL)&&core&&colocated_core(main,core)&&resolve_exports(out,core)){return true;}
+ memset(out,0,sizeof(*out));return false;
+}
 bool ui_rdp_live(const ui_exports* e,rdpContext* c,ui_live* out,const ui_geometry* geometry) {
  memset(out,0,sizeof(*out));
  if(!c || !c->input || c->input->context!=c || !c->settings){ return false; }

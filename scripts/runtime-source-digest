@@ -11,11 +11,17 @@ runtime_files=(
     uninstall.sh
     patches/libei-1.2.1-close-keymap-fd.patch
     scripts/build-compat.sh
+    scripts/build-full-input-loader.sh
+    src/uurb_full_input_loader.def
     scripts/verify-freerdp-input-sdk.py
     scripts/uu-full-ready.py
     scripts/uu-manual-plane.py
     scripts/build-libei.sh
     scripts/build-winpr.sh
+    scripts/build-reference-relay.py
+    scripts/Containerfile.reference-relay
+    scripts/prepare-build-toolchain.py
+    patches/reference-build-packages.json
     scripts/verify-freerdp-runtime.py
     patches/freerdp-sdl-product.json
     vendor/freerdp-sdl-build/bootstrap.sh

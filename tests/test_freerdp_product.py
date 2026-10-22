@@ -66,5 +66,29 @@ class FreeRDPProductTests(unittest.TestCase):
             self.assertFalse(work.exists())
 
 
+@unittest.skipUnless(shutil.which('x86_64-w64-mingw32-gcc') and
+                     shutil.which('x86_64-w64-mingw32-objdump'), 'MinGW required')
+class FullInputLoaderTests(unittest.TestCase):
+    def test_installer_builds_the_prefixed_addin_as_a_canonical_export_forwarder(self):
+        source = (ROOT / 'install.sh').read_text()
+        start = source.index('"$repo_dir/scripts/build-compat.sh" "$compat_build"')
+        start = source.index('\n', start) + 1
+        end = source.index('if [[ "$ID" == debian', start)
+        with tempfile.TemporaryDirectory(prefix='uu loader ') as directory:
+            result = subprocess.run([
+                'bash', '-Eeuo', 'pipefail', '-c',
+                'repo_dir="$1"\ncompat_build="$2"\n' + source[start:end],
+                'loader-test', str(ROOT), directory],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            loader = Path(directory) / 'libuurb-full-input-client.dll'
+            self.assertTrue(loader.is_file(), 'The pinned FreeRDP loader requires the lib prefix')
+            information = subprocess.run([
+                'x86_64-w64-mingw32-objdump', '-p', str(loader)],
+                check=True, capture_output=True, text=True).stdout
+            self.assertIn('Forwarder RVA -- uurb-full-input-client.DVCPluginEntry', information)
+            self.assertIn('DVCPluginEntry', information.partition('[Ordinal/Name Pointer] Table')[2])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,3 @@
+LIBRARY libuurb-full-input-client
+EXPORTS
+    DVCPluginEntry = uurb-full-input-client.DVCPluginEntry

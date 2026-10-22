@@ -240,7 +240,8 @@ def main() -> int:
         return 1
 
     if args.command == "plan":
-        print("\n".join(delete_keys))
+        for key in delete_keys:
+            print(key)
         return 0
 
     if args.command == "preflight":

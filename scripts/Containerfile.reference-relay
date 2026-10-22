@@ -1,0 +1,18 @@
+FROM docker.io/library/ubuntu:26.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    binutils ca-certificates curl git python3 tar zstd
+
+COPY scripts/prepare-build-toolchain.py /recipe/scripts/prepare-build-toolchain.py
+COPY patches/reference-build-packages.json /recipe/patches/reference-build-packages.json
+COPY vendor/freerdp-sdl-build/source-lock.json /recipe/vendor/freerdp-sdl-build/source-lock.json
+
+# Install the exact verified reference packages inside this image only.
+# Installing local archives also resolves their Ubuntu runtime dependencies.
+RUN python3 /recipe/scripts/prepare-build-toolchain.py \
+        --packages-dir /tmp/reference-packages --root /tmp/reference-tools && \
+    apt-get install -y --no-install-recommends /tmp/reference-packages/*.deb && \
+    rm -rf /tmp/reference-packages /tmp/reference-tools /var/lib/apt/lists/*
+
+WORKDIR /product

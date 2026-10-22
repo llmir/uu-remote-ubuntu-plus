@@ -153,8 +153,12 @@ static BOOL configure(uint64_t deadline){
 }
 BOOL uurb_rdp_probe(DWORD* error){
  uint64_t deadline=clock_ns()+UINT64_C(500000000);
- if(!uurb_rdp_enabled()||!connect_channel(deadline)||!configure(deadline)||
-  (ui_get32(cap+128)&(UI_CAP_KEY|UI_CAP_MOUSE|UI_CAP_REL))!=(UI_CAP_KEY|UI_CAP_MOUSE|UI_CAP_REL)){
+ BOOL enabled=uurb_rdp_enabled(),connected=enabled&&connect_channel(deadline);
+ BOOL configured=connected&&configure(deadline);
+ uint32_t required=UI_CAP_KEY|UI_CAP_MOUSE|UI_CAP_REL,caps=ui_get32(cap+128);
+ if(!configured||(caps&required)!=required){
+  fprintf(stderr,"UURB public readiness enabled=%u connected=%u configured=%u caps=0x%08lx missing=0x%08lx\n",
+   (unsigned)enabled,(unsigned)connected,(unsigned)configured,(unsigned long)caps,(unsigned long)(required&~caps));
   *error=ERROR_NOT_READY;close_channel(FALSE);return FALSE;
  }
  *error=ERROR_SUCCESS;return TRUE;

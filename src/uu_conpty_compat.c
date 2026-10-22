@@ -1,4 +1,7 @@
 #define _WIN32_WINNT 0x0A00
+/* MinGW 12 gates the ConPTY declarations on Windows 10 RS5, independently
+ * of the major Windows version selected by _WIN32_WINNT. */
+#define NTDDI_VERSION 0x0A000006
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <windows.h>
